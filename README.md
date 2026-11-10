@@ -31,7 +31,7 @@ To save its small summary:
 
 The CSV reports nonempty-group AARE and inactive-group MAE. Demo measurements are not paper results.
 
-## Minimal API example
+## Demo Test
 
 ```cpp
 #include "fms_experiment.hpp"

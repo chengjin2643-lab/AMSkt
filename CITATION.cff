@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "Please cite the AMSkt paper when publication information is available. This record identifies the accompanying research software."
+type: software
+title: "AMSkt: Accurate and Private Distinct Counting for Multiple Groups"
+authors:
+  - family-names: Yang
+    given-names: Chengjin
+  - family-names: Wang
+    given-names: Pinghui
+  - family-names: Liu
+    given-names: Tao
+  - family-names: Xie
+    given-names: Dongdong
+  - family-names: Duan
+    given-names: Tao
+  - family-names: Yin
+    given-names: Jie
+  - family-names: Li
+    given-names: Rundong
+repository-code: "https://github.com/chengjin2643-lab/AMSkt"

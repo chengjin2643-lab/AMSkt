@@ -1,66 +1,82 @@
-# AMSkt
+# AMSkt: Accurate and Private Distinct Counting for Multiple Groups
 
-Representative research code for **AMSkt: Accurate and Private Distinct Counting for Multiple Groups**.
+[![Language: C++20. Build: CMake 3.20 or newer.](docs/assets/toolchain.svg)](CMakeLists.txt)
 
-AMSkt estimates distinct counts for a fixed public directory of groups. It shares bitmap registers across groups, uses Hadamard assignments to balance sharing, and reconstructs counts from decoded block statistics. Compatible states can be merged before a joint private release.
+How many different users saw each ad across several websites? A user who sees the same ad on two sites counts **once** for that ad. A user who sees two ads counts **once for each**. AMSkt estimates these counts from compact local sketches, without pooling the view logs.
 
-This repository provides a focused **FMS implementation** and small executable examples. It includes AMSkt, vSkt, rSkt, CMSkt, and preallocated independent FMS under a common logical bitmap budget.
+![Sites build local sketches with a shared layout. A trusted service merges their bitmaps, adds noise to the merged readings, and releases one estimate per group.](docs/assets/amskt-overview.svg)
 
-[Implementation details](docs/IMPLEMENTATION.md) · [Experiments](docs/EXPERIMENTS.md)
+[🚀 Quickstart](#quickstart) · [🧪 Demo Test](#demo-test) · [🧩 Methods](#methods) · [📊 Workloads](#workloads) · [🎛️ Parameters](#parameters)
 
-## Quick start
+## Quickstart
 
-Requirements are a C++20 compiler and CMake 3.20 or newer. The basic examples do not need Python, downloaded datasets, or external libraries.
+You need a C++20 compiler and CMake 3.20 or newer. The demo generates its own data and uses only the C++ standard library.
 
 ```bash
+git clone https://github.com/chengjin2643-lab/AMSkt.git
+cd AMSkt
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 4
 ctest --test-dir build -C Release --output-on-failure
-./build/amskt_demo
-```
-
-On Windows with MinGW, put the compiler's `bin` directory on `PATH` and add `-G "MinGW Makefiles"` when configuring. Executables have the `.exe` suffix. With a multi-configuration generator, use `build/Release/amskt_demo.exe`.
-
-The demo creates synthetic memberships for 256 configured groups, builds and merges two partition-local states, and compares all five methods at a 32 KiB logical bitmap budget and epsilon = 1. It checks that merging gives the same state as direct construction. Estimates are clipped to zero before reporting errors.
-
-To save its small summary:
-
-```bash
 ./build/amskt_demo outputs/demo.csv
 ```
 
-The CSV reports nonempty-group AARE and inactive-group MAE. Demo measurements are not paper results.
+<details>
+<summary>Windows executable paths</summary>
+
+With MinGW, put its `bin` directory on `PATH` and add `-G "MinGW Makefiles"` to the configure command. Run `.\build\amskt_demo.exe outputs\demo.csv`. With a multi-configuration generator, the executable is under `build/Release/` instead.
+
+</details>
 
 ## Demo Test
 
-```cpp
-#include "fms_experiment.hpp"
-using namespace amskt_experiment;
+**Try a duplicate across two sites.** In the C++ API, `update(entity, group)` takes the entity ID first and a zero-based group index second. Both sites use the same public layout and hash seed.
 
-FiveSketches left(256, 64, 64, 2026);
-FiveSketches right(256, 64, 64, 2026);
-left.update(1001, 7);   // entity identifier, zero-based group index
-right.update(1001, 7);  // duplicate membership in another partition
-right.update(1002, 7);
-left.merge(right);
+```cpp
+using namespace amskt_experiment;  // from fms_experiment.hpp
+FiveSketches site_a(256, 64, 64, 2026), site_b(256, 64, 64, 2026);
+
+site_a.update(1001, 7);
+site_b.update(1001, 7);  // same user, same ad: duplicate across sites
+site_b.update(1002, 7);  // another user saw ad 7
+site_b.update(1001, 8);  // user 1001 also counts for ad 8
+site_a.merge(site_b);
 ```
 
-`FiveSketches` holds the comparison methods together so that they read identical updates. The AMSkt arrays are `ap` and `ac`. See `examples/demo.cpp` for decoder setup and private release.
+The true audiences are **2 for ad 7** and **1 for ad 8**. Merging reproduces the sketch built from the union, not the sum of the two sites' counts. The released estimates need not equal these exact counts.
 
-## Included
+**Read the executable's output.** The [full demo](examples/demo.cpp) runs a larger version with 256 groups. It checks that direct and merged sketches give identical estimates when released with identical noise. Here is the AMSkt row from one run (GCC 15.2, 22 active groups):
 
-| Path | Contents |
-|---|---|
-| `include/amskt/fms_experiment.hpp` | Group-salted FMS engine, five methods, merging and private release |
-| `examples/demo.cpp` | Small synthetic comparison and merge example |
-| `tests/` | Orthogonality, duplicate elimination, merge and decoder checks |
-| `experiments/unified_fms.cpp` | Optional Synthetic-10K and component-ablation runner |
-| `experiments/config/` | One fixed synthetic trial for a memory and activity sweep |
-| `docs/` | Configuration, memory accounting and execution instructions |
+```csv
+method,active_groups,bitmap_budget_bytes,epsilon,nonprivate_aare,private_aare,inactive_mae
+AMSkt,22,32768,1,0.0536650353,0.06082097219,16.42309071
+```
 
-The core engine and experiment runner are preserved from the experiment implementation. Build files, examples and documentation provide a smaller entry point. The regression reference under `tests/reference/` is used only by tests.
+Here `private_aare` means an average relative error of about **6.08% on active groups**. For groups whose true count was zero, the mean absolute error was **16.42 users** after clipping. The CSV includes all five methods. These are demo values, not paper averages.
 
-## Larger synthetic example
+## Methods
+
+All five methods in the [comparison engine](include/amskt/fms_experiment.hpp) receive the same memberships. This release uses 32-bit FMS bitmaps. The budget counts each method's logical bitmap storage, not the total memory of the process running all five.
+
+| Method | How it uses the bitmap budget |
+| :--- | :--- |
+| **AMSkt** | Groups in the same row use balanced Hadamard assignments. AMSkt decodes paired blocks before combining their signed differences. |
+| vSkt | Maps virtual registers onto a shared array and uses a global statistic to correct for background traffic. |
+| rSkt | Randomly assigns the two sides of each register pair and uses primary and complementary summaries. |
+| CMSkt | Updates a component sketch in each of two hashed layers and takes the smaller estimate. |
+| Independent FMS | Reserves a separate bitmap for every group in the public directory, including inactive groups. |
+
+🔒 **Private release.** A trusted service merges local states before adding noise. The protected unit is one entity's membership in one group. The demo uses fixed noise seeds for repeatability, not for protecting live data. See [implementation and noise calibration](docs/IMPLEMENTATION.md).
+
+## Workloads
+
+| Workload | What you can run |
+| :--- | :--- |
+| **Quick demo** | Two sites, 256 groups, 10% activity probability, and 2,000 distinct entities per active group. No downloads. |
+| **Synthetic-10K** | One included trial over 10,000 registered groups. Sweep memory from 0.5 to 4 MiB or activity from 1% to 20%. |
+| **PSID, NLSY79, KASANDR** | Real workloads evaluated in the paper. Their records are not distributed in this repository. |
+
+To run the [supplied Synthetic-10K configuration](experiments/config/synthetic_10k_one_trial.csv) from the repository root:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAMSKT_BUILD_EXPERIMENTS=ON
@@ -68,20 +84,20 @@ cmake --build build --config Release --parallel 4
 ./build/amskt_compare compare experiments/config/synthetic_10k_one_trial.csv outputs/synthetic_10k 1 1
 ```
 
-This is an optional, larger workload. Read [the experiment guide](docs/EXPERIMENTS.md) before running it. The supplied configuration has one trial. It does not establish the paper's 30-trial confidence intervals.
+The final two arguments select **one trial index** and **one worker**. Open `outputs/synthetic_10k/run_0.csv` for the first configuration's results. The supplied trial illustrates the experiment; it does not reproduce the paper's 30-trial confidence intervals. See the [experiment guide](docs/EXPERIMENTS.md) for output columns and tests.
 
-## Scope and privacy
+## Parameters
 
-- This initial code release focuses on FMS. It does not include every FM/LLC implementation or every paper figure.
-- Memory budgets count logical bitmap words. Mapping tables, decoder tables, output vectors and process overhead are additional memory.
-- The example uses fixed pseudorandom seeds for reproducibility on synthetic data. For a real private release, keep privacy-noise seeds confidential and use a suitably secure noise source. This research implementation is not a hardened privacy service.
-- Complete group vectors are reconstructed before metrics are restricted to nonempty groups. Private baseline calibration includes the full public group directory.
-- Raw PSID, NLSY79 and KASANDR records, entity-level derived files, manuscripts, reviews, logs and large experiment outputs are not included.
+The small demo fixes these values in [examples/demo.cpp](examples/demo.cpp); they are not command-line flags.
 
-## Citation
+| Setting | Demo value | Meaning |
+| :--- | ---: | :--- |
+| `N` | 256 | Number of group keys in the public directory |
+| `w` | 64 | Physical rows in each AMSkt array |
+| `m` | 64 | Bitmap registers per row; the two arrays use `8 × w × m` bytes in total |
+| `epsilon` | 1.0 | Privacy budget for one joint count release |
+| Output path | optional | Pass a CSV path to `amskt_demo` to save the printed summary |
 
-The repository accompanies **AMSkt: Accurate and Private Distinct Counting for Multiple Groups**. `CITATION.cff` contains the current title and authors. No publication venue or DOI is assigned here.
+## Citation and usage
 
-## License
-
-A project-wide open-source license has not yet been selected. No MIT, Apache or other reuse license is implied. See [NOTICE.md](NOTICE.md). Repository visibility does not by itself grant a software license.
+Use [CITATION.cff](CITATION.cff) for the paper title and author list. No project-wide open-source license has been assigned; see the [distribution notice](NOTICE.md).

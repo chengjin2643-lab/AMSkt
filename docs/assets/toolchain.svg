@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="232" height="22" viewBox="0 0 232 22" role="img" aria-labelledby="title">
+  <title id="title">Language: C++20. Build: CMake 3.20+.</title>
+  <rect width="108" height="22" rx="4" fill="#26394e"/>
+  <path d="M64 0h40q4 0 4 4v14q0 4-4 4H64z" fill="#245a88"/>
+  <rect x="114" width="118" height="22" rx="4" fill="#26394e"/>
+  <path d="M155 0h73q4 0 4 4v14q0 4-4 4h-73z" fill="#25665d"/>
+  <g font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#fff">
+    <text x="32" y="15">Language</text><text x="86" y="15">C++20</text>
+    <text x="134" y="15">Build</text><text x="193" y="15">CMake 3.20+</text>
+  </g>
+</svg>

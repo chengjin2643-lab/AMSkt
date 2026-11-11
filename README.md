@@ -6,7 +6,7 @@ AMSkt estimates distinct counts for a fixed public directory of groups. It share
 
 This repository provides a focused **FMS implementation** and small executable examples. It includes AMSkt, vSkt, rSkt, CMSkt, and preallocated independent FMS under a common logical bitmap budget.
 
-[中文说明](README.zh-CN.md) · [Implementation details](docs/IMPLEMENTATION.md) · [Experiments](docs/EXPERIMENTS.md)
+[Implementation details](docs/IMPLEMENTATION.md) · [Experiments](docs/EXPERIMENTS.md)
 
 ## Quick start
 

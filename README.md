@@ -4,7 +4,10 @@
 
 How many different users saw each ad across several websites? A user who sees the same ad on two sites counts **once** for that ad. A user who sees two ads counts **once for each**. AMSkt estimates these counts from compact local sketches, without pooling the view logs.
 
-![Sites build local sketches with a shared layout. A trusted service merges their bitmaps, adds noise to the merged readings, and releases one estimate per group.](docs/assets/amskt-overview.svg)
+- ⚡ **High accuracy:** Balanced register assignments limit interference between groups that share memory.
+- 🏗️ **Lightweight updates:** Each membership updates just one register in a fixed-size sketch.
+- 🧩 **Mergeable design:** Sites combine their bitmaps with bitwise OR, so a user seen at multiple sites still counts once per group.
+- 🔒 **Privacy protection (central DP):** A trusted service adds noise to the merged statistics once and releases all group counts together.
 
 [🚀 Quickstart](#quickstart) · [🧪 Demo Test](#demo-test) · [🧩 Methods](#methods) · [📊 Workloads](#workloads) · [🎛️ Parameters](#parameters)
 
